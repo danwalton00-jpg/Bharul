@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101827"><meta name="description" content="Bharul camera, media and browser compatibility workspace.">
+  <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Bharul">
+  <link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css">
+  <title>Bharul</title>
+</head>
+<body>
+  <header class="topbar"><div class="brand"><span class="brand-mark">✦</span><div><strong>Bharul</strong><small>Camera · Media · Browser tools</small></div></div><span class="secure"><i></i> Private local session</span></header>
+  <main class="shell">
+    <section class="intro"><div><p class="eyebrow">BHARUL PERSONAL MEDIA WORKSPACE</p><h1>Your camera and media,<br><em>working together.</em></h1><p class="sub">Use your live camera while selecting photos, videos, or audio. Bharul checks browser support and explains what works on this device.</p></div><div class="ai-pill"><span>✦</span><div><b>Compatibility assistant</b><small id="browserSummary">Detecting browser…</small></div></div></section>
+    <section class="workspace">
+      <div class="panel stage-panel">
+        <div class="panel-head"><div><span class="eyebrow">LIVE WORKSPACE</span><h2>Preview</h2></div><span id="cameraBadge" class="status neutral">Camera off</span></div>
+        <div class="stage" id="stage">
+          <video id="camera" autoplay muted playsinline></video>
+          <div id="mediaLayer" class="media-layer hidden"><img id="photoPreview" alt="Selected photo preview"><video id="videoPreview" playsinline controls></video><audio id="audioPreview" controls></audio></div>
+          <div id="emptyState" class="empty-state"><div class="lens">◎</div><b>Your preview will appear here</b><span>Start the camera or choose a photo, video, or audio file.</span></div>
+          <div class="stage-label"><span class="live-dot"></span><span id="stageLabel">Ready when you are</span></div>
+        </div>
+        <div class="controls"><button class="btn primary" id="startCamera">Start camera</button><button class="btn" id="switchCamera" disabled>Switch camera</button><button class="btn danger" id="stopCamera" disabled>Stop camera</button></div>
+        <div class="record-controls" aria-label="Video recording controls">
+          <button class="btn record-btn" id="startRecording" disabled><span class="record-dot"></span> Start recording</button>
+          <button class="btn danger" id="stopRecording" disabled>Stop recording</button>
+          <span id="recordStatus" class="record-status" aria-live="polite">Not recording</span>
+          <a id="downloadRecording" class="btn download-btn hidden" download="bharul-recording.webm">Save recording</a>
+        </div>
+        <p class="microcopy">Camera access is requested only after you tap Start camera. Recording starts only when you tap Start recording. Nothing is uploaded automatically.</p>
+      </div>
+      <aside class="side-column">
+        <div class="panel media-panel"><div class="panel-head"><div><span class="eyebrow">YOUR FILES</span><h2>Personal media</h2></div><span class="file-icon">↥</span></div>
+          <label class="upload-zone" for="mediaInput"><span class="upload-icon">＋</span><b>Choose photos, videos, or audio</b><small>JPG, PNG, WEBP, MP4, MOV, MP3, WAV, M4A and supported formats</small><input id="mediaInput" type="file" accept="image/*,video/*,audio/*" multiple></label>
+          <div id="mediaList" class="media-list"><p class="muted">No media selected yet.</p></div>
+          <div class="media-actions"><button class="btn" id="clearMedia" disabled>Clear selection</button><button class="btn" id="hideMedia" disabled>Hide media</button></div>
+        </div>
+        <div class="panel assistant-panel"><div class="panel-head"><div><span class="eyebrow">AUTOMATIC CHECKS</span><h2>Compatibility assistant</h2></div><span class="spark">✦</span></div>
+          <div class="diagnosis" id="diagnosis" aria-live="polite"><b>Checking this browser</b><p>Bharul tests supported browser features. Camera permission is requested only when you start the camera.</p></div>
+          <ul class="checks">
+            <li><span id="checkBrowser" class="check-dot"></span><span>Browser</span><b id="browserValue">Checking</b></li>
+            <li><span id="checkSecure" class="check-dot"></span><span>Secure connection (HTTPS)</span><b id="secureValue">Checking</b></li>
+            <li><span id="checkCamera" class="check-dot"></span><span>Camera API</span><b id="cameraValue">Checking</b></li>
+            <li><span id="checkWebRTC" class="check-dot"></span><span>WebRTC support</span><b id="webrtcValue">Checking</b></li>
+            <li><span id="checkRecorder" class="check-dot"></span><span>Media recording API</span><b id="recorderValue">Checking</b></li>
+            <li><span id="checkPermission" class="check-dot"></span><span>Camera permission</span><b id="permissionValue">Not requested</b></li>
+            <li><span id="checkMedia" class="check-dot"></span><span>Media preview</span><b id="mediaValue">Ready</b></li>
+          </ul>
+          <button class="btn full" id="runChecks">Run diagnostics</button>
+        </div>
+        <div class="panel assistant-panel pose-panel"><div class="panel-head"><div><span class="eyebrow">AI IMAGE EDITOR</span><h2>Pose & camera editor</h2></div><span class="spark">✦</span></div>
+          <p class="sub small">Choose a photo, capture a frame from your camera, or select a frame from a video. Describe the change and Bharul will send that still image to its configured AI image editor.</p>
+          <label class="field-label" for="poseRequest">Describe the edit you want</label>
+          <textarea id="poseRequest" rows="3" maxlength="2000" placeholder="Example: keep the same person and outfit, change the pose to a natural full-body front-facing selfie, preserve the room and lighting"></textarea>
+          <div class="ai-actions"><button class="btn" id="captureFrame">Use live camera frame</button><button class="btn primary" id="editWithAI">AI edit selected image</button></div>
+          <div id="aiEditStatus" class="pose-plan" aria-live="polite"><b>Ready for an image.</b><p>Select a photo above, start the camera and capture a frame, or select a video and pause it at the frame you want to edit.</p></div>
+          <img id="aiResult" class="ai-result hidden" alt="AI edited result">
+          <a id="downloadAIResult" class="btn download-btn hidden" download="bharul-ai-edited.png">Save AI edited image</a>
+          <p class="microcopy">Your selected still image is uploaded only when you press AI edit. The AI provider processes it to create the result. Video files are not regenerated; you can edit a still frame extracted from a video. Configure OPENAI_API_KEY on Render. API usage may incur charges.</p>
+        </div>
+      </aside>
+    </section>
+    <section class="panel website-panel"><div class="panel-head"><div><span class="eyebrow">WEBSITE HELPER</span><h2>Open another website</h2></div><span class="external">↗</span></div>
+      <p class="sub small">Open a website in a separate tab. Use that website's own upload and camera controls. Browser security prevents Bharul from controlling another tab or replacing its camera feed.</p>
+      <div class="site-row"><input id="siteUrl" type="url" placeholder="https://example.com" aria-label="Website address"><button class="btn primary" id="openSite">Open website</button></div>
+      <p class="microcopy">Bharul cannot approve permission prompts, bypass sign-in, or inject media into another website's live camera. You remain in control of camera and microphone permissions.</p>
+    </section>
+    <section class="panel website-panel"><div class="panel-head"><div><span class="eyebrow">CALLING READINESS</span><h2>Real voice and video calls</h2></div><span class="status neutral">Not connected</span></div>
+      <p class="sub small">This project currently provides local camera and media previews, not phone calls. Real two-way calls need a deployed signaling service, WebRTC session setup, and STUN/TURN configuration. Bharul will not show a fake call control or pretend a call is connected.</p>
+      <p class="microcopy">When a signaling server is configured, this section can be connected to real incoming and outgoing voice/video calls.</p>
+    </section>
+    <footer><span>Bharul</span><span>Local media preview · No media upload server configured</span></footer>
+  </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body></html>
