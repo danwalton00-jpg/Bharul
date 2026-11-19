@@ -34,7 +34,7 @@ async function mediaShare(req,res) {
   if(!originAllowed(req)) return json(res,403,{error:'Origin not allowed'}); if(!r2Ready) return mediaConfigError(res);
   let body=''; req.on('data',chunk=>{body+=chunk;if(body.length>4096)req.destroy();});
   req.on('end',async()=>{ try { const data=JSON.parse(body||'{}'); const key=String(data.key||'');
-    if(!/^uploads\\/[0-9]{4}-[0-9]{2}-[0-9]{2}\\/[0-9a-f-]{36}$/.test(key)) return json(res,400,{error:'Invalid media reference.'});
+    if(!/^uploads\/[0-9]{4}-[0-9]{2}-[0-9]{2}\/[0-9a-f-]{36}$/.test(key)) return json(res,400,{error:'Invalid media reference.'});
     const url=await getSignedUrl(r2,new GetObjectCommand({Bucket:R2_BUCKET,Key:key}),{expiresIn:604800}); return json(res,200,{url,expiresIn:604800});
   } catch { return json(res,400,{error:'Could not create a share link.'}); } });
 }
