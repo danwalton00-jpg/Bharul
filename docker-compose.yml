@@ -1,0 +1,13 @@
+services:
+  bharul-signaling:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN}
+      STUN_URLS: ${STUN_URLS:-stun:stun.l.google.com:19302}
+      TURN_URL: ${TURN_URL:-}
+      TURN_USERNAME: ${TURN_USERNAME:-}
+      TURN_CREDENTIAL: ${TURN_CREDENTIAL:-}
+    ports:
+      - "8080:8080"
