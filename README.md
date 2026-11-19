@@ -30,9 +30,9 @@ Upload the contents of this folder to an HTTPS host. Installability and service-
 
 ## Not implemented yet
 
-- Real two-way voice/video calling. `RTCPeerConnection` alone is not enough: a production call service needs authenticated signaling (for example WebSocket), session management, STUN/TURN configuration, and a deployed backend. Incoming/background call notifications have additional browser and iOS restrictions.
+- Real one-to-one voice/video calling using the deployed WebSocket signaling service and WebRTC. Calls require both people to keep the page open and grant camera/microphone access. STUN is configured; a TURN relay is recommended for restrictive networks. Incoming/background call notifications have additional browser and iOS restrictions.
 - AI image/video analysis or automatic pose editing. The included pose assistant creates a local filming checklist only; real AI analysis/editing requires a separately configured AI provider and secure server-side API key.
-- Server media upload, user accounts, encrypted messaging, and group chat. These require backend services and explicit security/privacy design.
+- Persistent server media upload, user accounts, encrypted messaging, and group chat. Media remains local to the browser until a separately configured persistent storage provider and access controls are added.
 - Replacing another website's camera feed or controlling another tab. Ordinary Safari/Edge pages are isolated by browser security and cannot do this.
 
 ## Privacy and compatibility

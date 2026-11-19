@@ -188,4 +188,114 @@
   $('startRecording').disabled=typeof window.MediaRecorder!=='function';
   if(typeof window.MediaRecorder!=='function') $('recordStatus').textContent='Recording unsupported in this browser';
   updateCameraUI(false); runChecks();
+
+  // Real one-to-one WebRTC calling, using the existing /signal WebSocket and /ice-config endpoint.
+  const call = { ws:null, pc:null, local:null, room:'', muted:false, cameraOff:false, pendingIce:[] };
+  const callStatus = (message) => { $('callStatus').textContent = message; };
+  const callBadge = (message, kind='neutral') => { $('callBadge').textContent=message; $('callBadge').className='status '+kind; };
+  const callSend = (payload) => {
+    if (!call.ws || call.ws.readyState !== WebSocket.OPEN) throw new Error('Call signaling is not connected.');
+    call.ws.send(JSON.stringify(payload));
+  };
+  async function preparePeerConnection() {
+    const response=await fetch('/ice-config',{cache:'no-store'});
+    if(!response.ok) throw new Error('Could not load call network settings.');
+    const config=await response.json();
+    call.pc=new RTCPeerConnection({iceServers:config.iceServers||[{urls:'stun:stun.l.google.com:19302'}]});
+    call.pendingIce=[];
+    call.pc.onicecandidate=e=>{if(e.candidate && call.ws?.readyState===WebSocket.OPEN)callSend({type:'ice-candidate',candidate:e.candidate.toJSON()});};
+    call.pc.ontrack=e=>{const remote=$('remoteCallVideo');if(e.streams[0])remote.srcObject=e.streams[0];callStatus('Connected · live media received');callBadge('Connected','good');};
+    call.pc.onconnectionstatechange=()=>{
+      const state=call.pc?.connectionState;
+      if(state==='connected'){callStatus('Connected · encrypted peer-to-peer media');callBadge('Connected','good');}
+      else if(state==='connecting'){callStatus('Connecting media…');callBadge('Connecting');}
+      else if(state==='failed'){callStatus('Connection failed. A TURN relay may be required on this network.');callBadge('Connection issue','bad');}
+      else if(state==='disconnected'){callStatus('Connection interrupted. Waiting for network recovery…');callBadge('Reconnecting');}
+    };
+    call.local.getTracks().forEach(track=>call.pc.addTrack(track,call.local));
+  }
+  async function flushPendingIce() {
+    if(!call.pc?.remoteDescription)return;
+    for(const candidate of call.pendingIce.splice(0)){try{await call.pc.addIceCandidate(candidate);}catch(err){console.warn('Could not add queued ICE candidate',err);}}
+  }
+  async function handleCallSignal(message) {
+    if(message.type==='joined'){callStatus(message.participants===2?'Peer is in the room · connecting…':'Room ready · waiting for the other person');callBadge('Waiting');return;}
+    if(message.type==='peer-joined'){
+      callStatus('Other person joined · creating secure connection…');
+      const offer=await call.pc.createOffer();await call.pc.setLocalDescription(offer);callSend({type:'offer',description:call.pc.localDescription});return;
+    }
+    if(message.type==='offer'){
+      await call.pc.setRemoteDescription(message.description);await flushPendingIce();
+      const answer=await call.pc.createAnswer();await call.pc.setLocalDescription(answer);callSend({type:'answer',description:call.pc.localDescription});return;
+    }
+    if(message.type==='answer'){await call.pc.setRemoteDescription(message.description);await flushPendingIce();return;}
+    if(message.type==='ice-candidate'){
+      if(call.pc?.remoteDescription){try{await call.pc.addIceCandidate(message.candidate);}catch(err){console.warn('ICE candidate rejected',err);}}
+      else call.pendingIce.push(message.candidate);
+      return;
+    }
+    if(message.type==='peer-left'){callStatus('The other person left the call. You can keep the room open or end it.');callBadge('Peer left');$('remoteCallVideo').srcObject=null;return;}
+    if(message.type==='room-full'){callStatus('This room already has two participants.');callBadge('Room full','bad');await endCall(false);return;}
+    if(message.type==='error'){callStatus(message.message||'Call signaling error');callBadge('Error','bad');}
+  }
+  async function startCall() {
+    if(!secure){toast('Calls require HTTPS');return;}
+    if(!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection || !window.WebSocket){toast('This browser does not support WebRTC calling');return;}
+    const button=$('startCall');button.disabled=true;
+    try{
+      const room=($('callRoom').value.trim()||('bharul-'+Math.random().toString(36).slice(2,10))).replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
+      if(room.length<6)throw new Error('Room code must contain at least 6 letters or numbers.');
+      $('callRoom').value=room;call.room=room;
+      callStatus('Requesting microphone and camera permission…');callBadge('Starting');
+      call.local=await navigator.mediaDevices.getUserMedia({audio:true,video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}}});
+      $('localCallVideo').srcObject=call.local;
+      await preparePeerConnection();
+      const wsUrl=(location.protocol==='https:'?'wss://':'ws://')+location.host+'/signal';
+      call.ws=new WebSocket(wsUrl);
+      await new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>reject(new Error('Signaling server did not respond. Try again.')),10000);
+        call.ws.addEventListener('open',()=>{clearTimeout(timer);resolve();},{once:true});
+        call.ws.addEventListener('error',()=>{clearTimeout(timer);reject(new Error('Could not connect to the Bharul signaling server.'));},{once:true});
+      });
+      call.ws.addEventListener('message',async event=>{try{await handleCallSignal(JSON.parse(event.data));}catch(err){console.error(err);callStatus('Call setup error: '+err.message);callBadge('Error','bad');}});
+      call.ws.addEventListener('close',()=>{if(call.pc)callStatus('Signaling connection closed.');});
+      callSend({type:'join',room});
+      $('toggleCallMic').disabled=false;$('toggleCallCamera').disabled=false;$('endCall').disabled=false;$('copyCallLink').disabled=false;
+      $('toggleCallMic').textContent='Mute microphone';$('toggleCallCamera').textContent='Turn camera off';
+      const invite=new URL(location.href);invite.searchParams.set('room',room);history.replaceState(null,'',invite.href);
+      callStatus('Room created · share the invite link');callBadge('Waiting');
+    }catch(err){
+      callStatus(err.message||'Could not start call');callBadge('Not connected','bad');toast(err.message||'Could not start call');
+      await endCall(false);
+    }finally{button.disabled=false;}
+  }
+  async function endCall(sendLeave=true) {
+    try{if(sendLeave&&call.ws?.readyState===WebSocket.OPEN)callSend({type:'leave'});}catch{}
+    if(call.ws){call.ws.close();call.ws=null;}
+    if(call.pc){call.pc.ontrack=null;call.pc.onicecandidate=null;call.pc.close();call.pc=null;}
+    if(call.local){call.local.getTracks().forEach(track=>track.stop());call.local=null;}
+    $('localCallVideo').srcObject=null;$('remoteCallVideo').srcObject=null;
+    $('toggleCallMic').disabled=true;$('toggleCallCamera').disabled=true;$('endCall').disabled=true;$('copyCallLink').disabled=true;
+    $('startCall').disabled=false;call.pendingIce=[];call.muted=false;call.cameraOff=false;
+    callStatus('Not in a call');callBadge('Ready');
+  }
+  $('startCall').addEventListener('click',startCall);
+  $('endCall').addEventListener('click',()=>endCall(true));
+  $('toggleCallMic').addEventListener('click',()=>{
+    if(!call.local)return;call.muted=!call.muted;call.local.getAudioTracks().forEach(t=>t.enabled=!call.muted);
+    $('toggleCallMic').textContent=call.muted?'Unmute microphone':'Mute microphone';
+  });
+  $('toggleCallCamera').addEventListener('click',()=>{
+    if(!call.local)return;call.cameraOff=!call.cameraOff;call.local.getVideoTracks().forEach(t=>t.enabled=!call.cameraOff);
+    $('toggleCallCamera').textContent=call.cameraOff?'Turn camera on':'Turn camera off';
+  });
+  $('copyCallLink').addEventListener('click',async()=>{
+    const invite=new URL(location.href);invite.searchParams.set('room',call.room);
+    try{await navigator.clipboard.writeText(invite.href);toast('Call invite link copied');}
+    catch{callStatus('Copy unavailable. Share this page URL with room code: '+call.room);}
+  });
+  const initialRoom=new URLSearchParams(location.search).get('room');
+  if(initialRoom && /^[a-zA-Z0-9_-]{6,40}$/.test(initialRoom))$('callRoom').value=initialRoom;
+  window.addEventListener('pagehide',()=>{if(call.local)call.local.getTracks().forEach(track=>track.stop());if(call.pc)call.pc.close();if(call.ws)call.ws.close();});
+
 })();

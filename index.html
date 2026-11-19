@@ -65,11 +65,15 @@
       <div class="site-row"><input id="siteUrl" type="url" placeholder="https://example.com" aria-label="Website address"><button class="btn primary" id="openSite">Open website</button></div>
       <p class="microcopy">Bharul cannot approve permission prompts, bypass sign-in, or inject media into another website's live camera. You remain in control of camera and microphone permissions.</p>
     </section>
-    <section class="panel website-panel"><div class="panel-head"><div><span class="eyebrow">CALLING READINESS</span><h2>Real voice and video calls</h2></div><span class="status neutral">Not connected</span></div>
-      <p class="sub small">This project currently provides local camera and media previews, not phone calls. Real two-way calls need a deployed signaling service, WebRTC session setup, and STUN/TURN configuration. Bharul will not show a fake call control or pretend a call is connected.</p>
-      <p class="microcopy">When a signaling server is configured, this section can be connected to real incoming and outgoing voice/video calls.</p>
+    <section class="panel website-panel call-panel">
+      <div class="panel-head"><div><span class="eyebrow">LIVE WEBRTC CALLING</span><h2>Voice and video calls</h2></div><span id="callBadge" class="status neutral">Ready</span></div>
+      <p class="sub small">Start a real one-to-one browser call. Share the room link with the other person. Both people must keep Bharul open and allow microphone/camera access.</p>
+      <div class="call-join-row"><label class="sr-only" for="callRoom">Call room code</label><input id="callRoom" maxlength="40" autocomplete="off" placeholder="Enter a room code or create one"><button class="btn primary" id="startCall">Start / join call</button><button class="btn" id="copyCallLink" disabled>Copy invite link</button></div>
+      <div class="call-videos"><div class="call-video-wrap"><video id="localCallVideo" autoplay muted playsinline></video><span>You</span></div><div class="call-video-wrap"><video id="remoteCallVideo" autoplay playsinline></video><span>Other person</span></div></div>
+      <div class="call-controls"><button class="btn" id="toggleCallMic" disabled>Mute microphone</button><button class="btn" id="toggleCallCamera" disabled>Turn camera off</button><button class="btn danger" id="endCall" disabled>End call</button><span id="callStatus" role="status" aria-live="polite">Not in a call</span></div>
+      <p class="microcopy">Calls use the deployed Bharul signaling service and browser WebRTC. STUN is configured; a TURN relay is still needed for reliable connections on restrictive networks. Calls are not recorded by this feature.</p>
     </section>
-    <footer><span>Bharul</span><span>Local media preview · No media upload server configured</span></footer>
+    <footer><span>Bharul</span><span>Local media preview · Calls are peer-to-peer; persistent uploads are not configured</span></footer>
   </main>
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="app.js"></script>
