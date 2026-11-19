@@ -140,7 +140,7 @@
     $('mediaLayer').classList.add('hidden'); $('emptyState').classList.toggle('hidden',!!stream);
   }
   function showFile(file) {
-    selectedFile=file; clearPreview(); activeUrl=URL.createObjectURL(file); $('mediaLayer').classList.remove('hidden'); $('emptyState').classList.add('hidden');
+    selectedFile=file; $('uploadMedia').disabled=false; $('mediaShareLink').classList.add('hidden'); $('uploadStatus').textContent='Preview is local to this device. Tap Upload selected media to store it in Cloudflare R2.'; clearPreview(); activeUrl=URL.createObjectURL(file); $('mediaLayer').classList.remove('hidden'); $('emptyState').classList.add('hidden');
     if(file.type.startsWith('image/')) { photo.src=activeUrl; photo.classList.add('visible'); setStatus('mediaValue','Photo ready'); diagnose('Photo ready','The image is displayed locally on this device. It has not been uploaded to a server.'); }
     else if(file.type.startsWith('video/')) { video.src=activeUrl; video.classList.add('visible'); video.load(); video.play().then(()=>{setStatus('mediaValue','Video playing');diagnose('Video playing','Your prerecorded video is playing locally. This is a media preview, not a live camera call.');}).catch(()=>{setStatus('mediaValue','Tap Play');diagnose('Video ready','Your browser requires a user gesture. Press Play on the video controls.');}); }
     else if(file.type.startsWith('audio/')) { audio.src=activeUrl; audio.classList.add('visible'); audio.load(); setStatus('mediaValue','Audio ready'); diagnose('Audio ready','Your audio file is ready for local playback. Press Play to listen.'); }
@@ -162,7 +162,21 @@
     if(!incoming.length){toast('Choose a supported image, video, or audio file');return;}
     files=[...files,...incoming];renderFiles();showFile(incoming[incoming.length-1]);dot('checkMedia','ok');toast(`${incoming.length} file(s) added`);e.target.value='';
   });
-  $('clearMedia').addEventListener('click',()=>{files=[];clearPreview();renderFiles();setStatus('mediaValue','Ready');});
+  $('uploadMedia').addEventListener('click',async()=>{
+    const file=selectedFile; if(!file){toast('Choose a file first');return;}
+    const button=$('uploadMedia'); button.disabled=true; $('mediaShareLink').classList.add('hidden'); $('uploadStatus').textContent='Preparing secure upload…';
+    try {
+      const prep=await fetch('/media/presign',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({name:file.name,type:file.type,size:file.size})});
+      const info=await prep.json().catch(()=>({})); if(!prep.ok) throw new Error(info.error||'Upload setup failed.');
+      $('uploadStatus').textContent='Uploading to Cloudflare R2…';
+      const put=await fetch(info.putUrl,{method:'PUT',headers:{'content-type':file.type},body:file}); if(!put.ok) throw new Error('Cloud upload failed. Check the R2 bucket CORS rules.');
+      const shareResponse=await fetch('/media/share',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({key:info.key})});
+      const share=await shareResponse.json().catch(()=>({})); if(!shareResponse.ok) throw new Error(share.error||'Could not create a share link.');
+      const link=$('mediaShareLink'); link.href=share.url; link.classList.remove('hidden'); $('uploadStatus').textContent='Uploaded to Cloudflare R2. The private share link expires in 7 days.'; toast('Media uploaded successfully');
+    } catch(err) { $('uploadStatus').textContent=err.message||'Upload failed. Check R2 configuration.'; toast(err.message||'Upload failed'); }
+    finally { button.disabled=!selectedFile; }
+  });
+  $('clearMedia').addEventListener('click',()=>{files=[];selectedFile=null;$('uploadMedia').disabled=true;$('mediaShareLink').classList.add('hidden');clearPreview();renderFiles();setStatus('mediaValue','Ready');});
   $('hideMedia').addEventListener('click',()=>{clearPreview();renderFiles();toast('Media hidden');});
 
   async function runChecks() {

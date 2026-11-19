@@ -33,7 +33,7 @@
         <div class="panel media-panel"><div class="panel-head"><div><span class="eyebrow">YOUR FILES</span><h2>Personal media</h2></div><span class="file-icon">↥</span></div>
           <label class="upload-zone" for="mediaInput"><span class="upload-icon">＋</span><b>Choose photos, videos, or audio</b><small>JPG, PNG, WEBP, MP4, MOV, MP3, WAV, M4A and supported formats</small><input id="mediaInput" type="file" accept="image/*,video/*,audio/*" multiple></label>
           <div id="mediaList" class="media-list"><p class="muted">No media selected yet.</p></div>
-          <div class="media-actions"><button class="btn" id="clearMedia" disabled>Clear selection</button><button class="btn" id="hideMedia" disabled>Hide media</button></div>
+          <div class="media-actions"><button class="btn primary" id="uploadMedia" disabled>Upload selected media</button><button class="btn" id="clearMedia" disabled>Clear selection</button><button class="btn" id="hideMedia" disabled>Hide media</button></div><p id="uploadStatus" class="microcopy" role="status" aria-live="polite">Local preview works. Configure Cloudflare R2 to enable persistent uploads.</p><a id="mediaShareLink" class="btn download-btn hidden" target="_blank" rel="noopener">Open 7-day media link</a>
         </div>
         <div class="panel assistant-panel"><div class="panel-head"><div><span class="eyebrow">AUTOMATIC CHECKS</span><h2>Compatibility assistant</h2></div><span class="spark">✦</span></div>
           <div class="diagnosis" id="diagnosis" aria-live="polite"><b>Checking this browser</b><p>Bharul tests supported browser features. Camera permission is requested only when you start the camera.</p></div>
@@ -73,7 +73,7 @@
       <div class="call-controls"><button class="btn" id="toggleCallMic" disabled>Mute microphone</button><button class="btn" id="toggleCallCamera" disabled>Turn camera off</button><button class="btn danger" id="endCall" disabled>End call</button><span id="callStatus" role="status" aria-live="polite">Not in a call</span></div>
       <p class="microcopy">Calls use the deployed Bharul signaling service and browser WebRTC. STUN is configured; a TURN relay is still needed for reliable connections on restrictive networks. Calls are not recorded by this feature.</p>
     </section>
-    <footer><span>Bharul</span><span>Local media preview · Calls are peer-to-peer; persistent uploads are not configured</span></footer>
+    <footer><span>Bharul</span><span>Local preview · Cloud uploads use Cloudflare R2 when configured · Calls are peer-to-peer</span></footer>
   </main>
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="app.js"></script>

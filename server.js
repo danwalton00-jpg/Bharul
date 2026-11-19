@@ -3,12 +3,41 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const Busboy = require('busboy');
+const { randomUUID } = require('node:crypto');
+const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { WebSocketServer, WebSocket } = require('ws');
 const PORT = Number(process.env.PORT || 8080);
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || process.env.ALLOWED_ORIGIN || '').split(',').map(x => x.trim()).filter(Boolean);
 const MAX_CONNECTIONS_PER_IP = Number(process.env.MAX_CONNECTIONS_PER_IP || 5);
 const MAX_MESSAGES_PER_MINUTE = Number(process.env.MAX_MESSAGES_PER_MINUTE || 120);
 const rooms = new Map();
+const R2_BUCKET = process.env.R2_BUCKET_NAME || '';
+const r2Ready = !!(process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && R2_BUCKET);
+const r2 = r2Ready ? new S3Client({ region: 'auto', endpoint: 'https://' + process.env.R2_ACCOUNT_ID + '.r2.cloudflarestorage.com', credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY } }) : null;
+const MEDIA_TYPES = new Set(['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/quicktime','video/webm','audio/mpeg','audio/mp4','audio/wav','audio/x-wav','audio/webm','audio/aac','audio/ogg']);
+function mediaConfigError(res) { return json(res,503,{error:'Cloudflare R2 is not configured. Add R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME to Render.'}); }
+function readJson(req, limit, callback) { let body=''; req.on('data',chunk=>{ body+=chunk; if(body.length>limit){ req.destroy(); } }); req.on('end',()=>{ try { callback(JSON.parse(body||'{}')); } catch { json(res,400,{error:'Invalid request.'}); } }); }
+async function mediaPresign(req,res) {
+  if(!originAllowed(req)) return json(res,403,{error:'Origin not allowed'}); if(!r2Ready) return mediaConfigError(res);
+  let body=''; req.on('data',chunk=>{body+=chunk;if(body.length>8192)req.destroy();});
+  req.on('end',async()=>{ try {
+    const data=JSON.parse(body||'{}'); const type=String(data.type||'').toLowerCase(); const size=Number(data.size);
+    if(!MEDIA_TYPES.has(type)) return json(res,415,{error:'This media format is not supported.'});
+    if(!Number.isFinite(size)||size<=0||size>250*1024*1024) return json(res,413,{error:'File must be no larger than 250 MB.'});
+    const key='uploads/'+new Date().toISOString().slice(0,10)+'/'+randomUUID();
+    const putUrl=await getSignedUrl(r2,new PutObjectCommand({Bucket:R2_BUCKET,Key:key,ContentType:type}),{expiresIn:900});
+    return json(res,200,{key,putUrl,expiresIn:900});
+  } catch { return json(res,400,{error:'Could not prepare this upload.'}); } });
+}
+async function mediaShare(req,res) {
+  if(!originAllowed(req)) return json(res,403,{error:'Origin not allowed'}); if(!r2Ready) return mediaConfigError(res);
+  let body=''; req.on('data',chunk=>{body+=chunk;if(body.length>4096)req.destroy();});
+  req.on('end',async()=>{ try { const data=JSON.parse(body||'{}'); const key=String(data.key||'');
+    if(!/^uploads\\/[0-9]{4}-[0-9]{2}-[0-9]{2}\\/[0-9a-f-]{36}$/.test(key)) return json(res,400,{error:'Invalid media reference.'});
+    const url=await getSignedUrl(r2,new GetObjectCommand({Bucket:R2_BUCKET,Key:key}),{expiresIn:604800}); return json(res,200,{url,expiresIn:604800});
+  } catch { return json(res,400,{error:'Could not create a share link.'}); } });
+}
 const socketsByIp = new Map();
 const aiRequestsByIp = new Map();
 const iceServers = [{ urls: (process.env.STUN_URLS || 'stun:stun.l.google.com:19302').split(',').map(x => x.trim()).filter(Boolean) }];
@@ -46,8 +75,10 @@ function editImage(req,res){
   req.pipe(bb);
 }
 const server=http.createServer((req,res)=>{
-  if(req.method==='GET'&&req.url==='/health')return json(res,200,{ok:true,service:'bharul-signaling',aiImageEditing:!!process.env.OPENAI_API_KEY});
+  if(req.method==='GET'&&req.url==='/health')return json(res,200,{ok:true,service:'bharul-signaling',aiImageEditing:!!process.env.OPENAI_API_KEY,mediaStorage:r2Ready?'cloudflare-r2':'not-configured'});
   if(req.method==='POST'&&req.url==='/ai/edit-image')return editImage(req,res);
+  if(req.method==='POST'&&req.url==='/media/presign')return mediaPresign(req,res);
+  if(req.method==='POST'&&req.url==='/media/share')return mediaShare(req,res);
   if(req.method==='GET'&&req.url==='/ice-config'){if(!originAllowed(req))return json(res,403,{error:'Origin not allowed'});return json(res,200,{iceServers},{'access-control-allow-origin':req.headers.origin,vary:'Origin'});}
   if(req.method!=='GET')return json(res,405,{error:'Method not allowed'},{allow:'GET, POST'});
   let pathname;try{pathname=new URL(req.url,'http://localhost').pathname;}catch{return json(res,400,{error:'Invalid URL'});}
