@@ -3,8 +3,8 @@ const {OAuth2Client}=require('google-auth-library');
 const {createHmac,randomBytes,timingSafeEqual}=require('node:crypto');
 const ALLOWED_EMAIL='Danwalton00@gmail.com'.toLowerCase();
 const COOKIE='bharul_session', STATE_COOKIE='bharul_oauth_state';
-const configured=()=>!!(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET&&process.env.SESSION_SECRET&&process.env.SESSION_SECRET.length>=32);
-const redirectUri=req=>process.env.GOOGLE_REDIRECT_URI||('https://'+req.headers.host+'/auth/callback');
+const configured=()=>!!(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET&&process.env.SESSION_SECRET&&process.env.SESSION_SECRET.length>=32&&!!process.env.GOOGLE_REDIRECT_URI);
+const redirectUri=()=>process.env.GOOGLE_REDIRECT_URI;
 function client(req){return new OAuth2Client(process.env.GOOGLE_CLIENT_ID,process.env.GOOGLE_CLIENT_SECRET,redirectUri(req));}
 function cookie(req,name){const item=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='));return item?decodeURIComponent(item.slice(name.length+1)):'';}
 function sign(value){return createHmac('sha256',process.env.SESSION_SECRET).update(value).digest('base64url');}
