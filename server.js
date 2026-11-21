@@ -7,6 +7,7 @@ const { randomUUID } = require('node:crypto');
 const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { WebSocketServer, WebSocket } = require('ws');
+const auth = require('./auth');
 const PORT = Number(process.env.PORT || 8080);
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || process.env.ALLOWED_ORIGIN || '').split(',').map(x => x.trim()).filter(Boolean);
 const MAX_CONNECTIONS_PER_IP = Number(process.env.MAX_CONNECTIONS_PER_IP || 5);
@@ -74,7 +75,14 @@ function editImage(req,res){
   });
   req.pipe(bb);
 }
-const server=http.createServer((req,res)=>{
+const server=http.createServer(async(req,res)=>{
+  if(await auth.handle(req,res))return;
+  const pathnameForAuth=(()=>{try{return new URL(req.url,'https://bharul.invalid').pathname;}catch{return '';}})();
+  const publicPaths=new Set(['/login.html','/login.css','/login.js']);
+  if(pathnameForAuth!=='/health'&&!publicPaths.has(pathnameForAuth)&&!auth.session(req)){
+    if(req.method==='GET'||req.method==='HEAD'){res.writeHead(302,{Location:'/login.html','Cache-Control':'no-store'});return res.end();}
+    return json(res,401,{error:'Sign in required.'});
+  }
   if(req.method==='GET'&&req.url==='/health')return json(res,200,{ok:true,service:'bharul-signaling',aiImageEditing:!!process.env.OPENAI_API_KEY,mediaStorage:r2Ready?'cloudflare-r2':'not-configured'});
   if(req.method==='POST'&&req.url==='/ai/edit-image')return editImage(req,res);
   if(req.method==='POST'&&req.url==='/media/presign')return mediaPresign(req,res);
@@ -87,7 +95,7 @@ const server=http.createServer((req,res)=>{
   fs.stat(file,(err,stat)=>{if(err||!stat.isFile())return json(res,404,{error:'Not found'});res.writeHead(200,{'content-type':MIME[path.extname(file)]||'application/octet-stream','x-content-type-options':'nosniff','referrer-policy':'strict-origin-when-cross-origin','cache-control':path.basename(file)==='index.html'||path.basename(file)==='config.js'?'no-store':'public, max-age=3600'});fs.createReadStream(file).pipe(res);});
 });
 const wss=new WebSocketServer({noServer:true,maxPayload:16*1024,perMessageDeflate:false});
-server.on('upgrade',(req,socket,head)=>{if(!originAllowed(req)){socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');socket.destroy();return;}const ip=req.socket.remoteAddress||'unknown';if((socketsByIp.get(ip)||0)>=MAX_CONNECTIONS_PER_IP){socket.write('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');socket.destroy();return;}if(new URL(req.url,'http://localhost').pathname!=='/signal'){socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');socket.destroy();return;}wss.handleUpgrade(req,socket,head,ws=>{ws.clientIp=ip;wss.emit('connection',ws,req);});});
+server.on('upgrade',(req,socket,head)=>{if(!auth.session(req)){socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');socket.destroy();return;}if(!originAllowed(req)){socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');socket.destroy();return;}const ip=req.socket.remoteAddress||'unknown';if((socketsByIp.get(ip)||0)>=MAX_CONNECTIONS_PER_IP){socket.write('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');socket.destroy();return;}if(new URL(req.url,'http://localhost').pathname!=='/signal'){socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');socket.destroy();return;}wss.handleUpgrade(req,socket,head,ws=>{ws.clientIp=ip;wss.emit('connection',ws,req);});});
 function send(ws,data){if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(data));}
 function leave(ws){const room=ws.room;if(!room)return;const peers=rooms.get(room);if(peers){peers.delete(ws);for(const peer of peers)send(peer,{type:'peer-left'});if(!peers.size)rooms.delete(room);}ws.room=null;}
 function closeWith(ws,code,reason){try{ws.close(code,reason);}catch{}}
