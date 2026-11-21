@@ -14,6 +14,7 @@
     "busboy": "^1.6.0",
     "ws": "^8.18.0",
     "@aws-sdk/client-s3": "^3.850.0",
-    "@aws-sdk/s3-request-presigner": "^3.850.0"
+    "@aws-sdk/s3-request-presigner": "^3.850.0",
+    "google-auth-library": "^10.3.0"
   }
 }
