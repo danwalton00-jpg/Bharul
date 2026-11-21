@@ -1,0 +1,1 @@
+fetch('/auth/status',{cache:'no-store'}).then(r=>r.json()).then(s=>{if(s.signedIn)location.replace('/');if(!s.configured)document.getElementById('notice').textContent='Google Sign-In setup is not finished. The site owner must add the Google OAuth credentials in Render.'}).catch(()=>{});
