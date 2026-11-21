@@ -47,3 +47,19 @@ Bharul can send a user-selected photo or still frame to the OpenAI Images Edits 
 In Render, open the `bharul-call-server` service, go to **Environment**, and add `OPENAI_API_KEY` with your OpenAI API key. Optionally set `OPENAI_IMAGE_MODEL` (default: `gpt-image-2.5-sunburst`). Save changes and redeploy. API usage is billed separately by the AI provider; Render Free hosting does not include AI API credits.
 
 The `/ai/edit-image` endpoint accepts one JPG, PNG, or WEBP image up to 10 MB and a prompt up to 2,000 characters. It checks the same-origin allowlist, applies a basic per-IP rate limit, and returns the generated image. For video uploads, the browser extracts a single frame and edits that still image; it does not create a new video. This starter has no user login, so add authenticated access and stronger distributed abuse controls before exposing AI editing publicly.
+
+
+## Private Google Sign-In
+
+The app now has a private Google OAuth sign-in flow. Only the verified Google account `Danwalton00@gmail.com` is allowed. There is no public registration or separate Bharul password. The server checks a signed, HttpOnly, Secure session cookie for the app, protected APIs, and WebSocket call signaling.
+
+Before the new login can work, configure these environment variables on the Render web service:
+
+- `GOOGLE_CLIENT_ID`: OAuth 2.0 Web application client ID from Google Cloud.
+- `GOOGLE_CLIENT_SECRET`: matching OAuth client secret. Keep this only in Render, never in GitHub or browser code.
+- `GOOGLE_REDIRECT_URI`: exact HTTPS callback URL, for example `https://bharul-call-server.onrender.com/auth/callback` (use the actual deployed hostname).
+- `SESSION_SECRET`: a random secret of at least 32 characters.
+
+In Google Cloud Console, configure the OAuth consent screen and create an OAuth client with application type **Web application**. Add the deployed Bharul origin under **Authorized JavaScript origins** (for example `https://bharul-call-server.onrender.com`) and the exact callback URL above under **Authorized redirect URIs**. Add the exact same callback URL to Render as `GOOGLE_REDIRECT_URI`.
+
+Generate a session secret locally with `openssl rand -base64 48`; paste the output directly into Render's secret environment variable field. Do not send credentials or secrets in ChatGPT. Save the Render environment changes and deploy the branch after reviewing/merging it. The health endpoint remains public for Render health checks; the website, APIs, media endpoints, and call signaling require the authorized session.
